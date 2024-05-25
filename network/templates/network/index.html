@@ -1,0 +1,148 @@
+{% extends "network/layout.html" %}
+{% load static %}
+
+{% block body %}
+<script>
+function edit_post(postId) {
+    const postContent = document.getElementById('content_' + postId);
+    const editButton = document.querySelector('#edit_btn_' + postId);
+    const saveButton = document.querySelector('#save_btn_' + postId);
+
+    editButton.style.visibility = 'hidden';
+    saveButton.style.visibility = 'visible';
+
+    const my_textarea = document.createElement('textarea');
+    my_textarea.maxLength = 5000;
+    my_textarea.cols = 80;
+    my_textarea.rows = 4;
+    my_textarea.textContent = postContent.innerHTML;
+
+    postContent.parentNode.replaceChild(my_textarea, postContent);
+
+    saveButton.onclick = function() {
+        savePost(my_textarea.value, postId, postContent, editButton, my_textarea, saveButton);
+    };
+}
+
+function savePost(newContent, postId, postContent, editButton, my_textarea, saveButton) {
+    fetch('/post/' + postId, {
+        method: "PUT",
+        body: JSON.stringify({
+            "content": newContent
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        console.log('Data received:', data);
+        postContent.innerHTML = newContent;
+        my_textarea.replaceWith(postContent);
+        editButton.style.visibility = 'visible';
+        saveButton.style.visibility = 'hidden';
+    })
+    .catch(error => {
+        console.error('Error:', error);
+    });
+}
+
+//like unlike post
+document.addEventListener('DOMContentLoaded', () => {
+    // Select all like buttons
+    const likeButtons = document.querySelectorAll('.like-button');
+
+    likeButtons.forEach(button => {
+        button.addEventListener('click', async () => {
+            const postId = button.dataset.postId;
+
+            try {
+                const response = await fetch('/like_post/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCookie('csrftoken'),
+                    },
+                    body: JSON.stringify({ post_id: postId }),
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    const likeCountElement = document.getElementById(`like-count-${postId}`);
+
+                    if (data.liked) {
+                        button.classList.add('liked');
+                        button.classList.remove('not-liked');
+                        button.textContent = '❤️';
+                        likeCountElement.textContent = data.like_count;
+                    } else {
+                        button.classList.add('not-liked');
+                        button.classList.remove('liked');
+                        button.textContent = '🤍';
+                        likeCountElement.textContent = data.like_count;
+                    }
+                } else {
+                    console.error('Failed to like/unlike the post');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+            }
+        });
+    });
+
+    // Function to get CSRF token from cookie
+    const getCookie = (name) => {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === `${name}=`) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    };
+});
+</script>
+    <h3 class="mx-2">All Posts</h3>
+
+    <!-- adding new post -->
+    {% if user.is_authenticated %}
+    <div class="mx-2">
+        <form action="{% url 'new_post' %}" method="post">
+            {% csrf_token %}
+            <textarea name="content" cols="160" rows="2" class="new-post"></textarea>
+            <input type="submit" value="Submit" class="btn btn-outline-primary my-2">
+        </form>
+    </div>
+    {% endif %}
+
+    <!-- showing all posts -->
+    {% for post in page_obj %}
+    <div class="border mx-1 my-1">
+        <h5 class="username mx-3 my-3"><a href="{% url 'profile' post.user %}">{{post.user}}</a></h5>
+        <h6 class="content mx-3" id="content_{{post.id}}">{{post.content}}</h6>
+        <p class="date mx-3 my-2">{{post.date}}</p>
+        <button id="like-button-{{ post.id }}" data-post-id="{{ post.id }}"
+        class="like-button mx-3 my-2 {% if request.user in post.likes.all %}liked{% else %}not-liked{% endif %}">
+        {% if request.user in post.likes.all %}❤️{% else %}🤍{% endif %}
+        </button>
+        <span id="like-count-{{ post.id }}">{{ post.likes.count }} </span>
+        {% if post.user == request.user %}
+            <button class="edit btn btn-link mx-1" id="edit_btn_{{post.id}}" onclick="edit_post('{{post.id}}')">Edit</button>
+            <button class="save btn btn-link " id="save_btn_{{post.id}}" style="visibility:hidden" onclick="savePost('{{post.id}}')">Save</button>         {% endif %}
+    </div>
+    {% endfor %}
+
+
+    <nav aria-label="Page navigation example">
+        <ul class="pagination d-flex justify-content-center">
+            {% if page_obj.has_previous %}
+                <li class="page-item"><a class="page-link" href="?page={{page_obj.previous_page_number}}">Previous</a></li>
+            {% endif %}
+            {% if page_obj.has_next %}
+                <li class="page-item"><a class="page-link" href="?page={{page_obj.next_page_number}}">Next</a></li>
+            {% endif %}
+        </ul>
+      </nav>
+{% endblock %}

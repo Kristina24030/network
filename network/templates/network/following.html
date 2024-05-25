@@ -1,0 +1,69 @@
+{% extends "network/layout.html" %}
+{% load static %}
+
+{% block body %}
+<script>
+//like unlike post
+document.addEventListener('DOMContentLoaded', () => {
+const likeButtons = document.querySelectorAll('.like-button');
+
+likeButtons.forEach(button => {
+button.addEventListener('click', async () => {
+const postId = button.dataset.postId;
+
+try {
+const response = await fetch('/like_post/', {
+    method: 'POST',
+    body: JSON.stringify({ post_id: postId }),
+});
+
+if (response.ok) {
+    const data = await response.json();
+    const likeCountElement = document.getElementById(`like-count-${postId}`);
+
+    if (data.liked) {
+        button.classList.add('liked');
+        button.classList.remove('not-liked');
+        button.textContent = '❤️';
+        likeCountElement.textContent = data.like_count;
+    } else {
+        button.classList.add('not-liked');
+        button.classList.remove('liked');
+        button.textContent = '🤍';
+        likeCountElement.textContent = data.like_count;
+    }
+}} catch (error) {
+    console.error('Error:', error);
+}
+});
+});
+});
+</script>
+    <h3>Following</h3>
+
+    <!-- showing all posts -->
+    {% for post in page_obj %}
+    <div class="border mx-1 my-1">
+        <h5 class="username mx-3 my-3"><a href="{% url 'profile' post.user %}">{{post.user}}</a></h5>
+        <h6 class="content mx-3" id="content_{{post.id}}">{{post.content}}</h6>
+        <p class="date mx-3">{{post.date}}</p>
+        <button id="like-button-{{ post.id }}" data-post-id="{{ post.id }}"
+        class="like-button mx-3 my-2 {% if request.user in post.likes.all %}liked{% else %}not-liked{% endif %}">
+        {% if request.user in post.likes.all %}❤️{% else %}🤍{% endif %}
+        </button>
+        <span id="like-count-{{ post.id }}">{{ post.likes.count }} </span>
+    </div>
+    {% endfor %}
+
+    <!-- paginator -->
+    <nav aria-label="Page navigation example">
+        <ul class="pagination d-flex justify-content-center">
+            {% if page_obj.has_previous %}
+                <li class="page-item"><a class="page-link" href="?page={{page_obj.previous_page_number}}">Previous</a></li>
+            {% endif %}
+            {% if page_obj.has_next %}
+                <li class="page-item"><a class="page-link" href="?page={{page_obj.next_page_number}}">Next</a></li>
+            {% endif %}
+        </ul>
+      </nav>
+{% endblock %}
